@@ -1,0 +1,128 @@
+---
+title: "How to Swap Any Provider in A2SaaS"
+description: "A2SaaS is built with abstraction layers so you can swap auth, email, or database providers without rewriting your app."
+date: "2024-12-29"
+author: "A2SaaS Team"
+tags: ["architecture", "providers", "flexibility"]
+---
+
+One of the most common questions about boilerplates: "What if I want to use a different provider?"
+
+Maybe you prefer Auth.js over Clerk. Maybe your company already uses SendGrid instead of Resend. Maybe you want Supabase instead of Neon.
+
+A2SaaS is designed for exactly this. Here's how.
+
+## The Abstraction Philosophy
+
+Most boilerplates hard-wire their providers. Clerk imports scattered across dozens of files. Stripe logic intertwined with business logic. Changing anything means a major refactor.
+
+A2SaaS takes a different approach: **abstraction layers**.
+
+Your app code talks to abstractions. The abstractions talk to providers. Swap the provider, keep the abstraction, and your app code doesn't change.
+
+## Auth: The Adapter Pattern
+
+Authentication is abstracted through `src/lib/auth/`. Your app uses these functions:
+
+```typescript
+import { getCurrentUser, getUserId } from "@/lib/auth";
+
+// In any server component or API route
+const user = await getCurrentUser(); // { id, email, name, imageUrl }
+const userId = await getUserId(); // Just the ID
+```
+
+Under the hood, there's an adapter (`src/lib/auth/adapters/clerk.ts`) that implements these functions using Clerk. Want to use Auth.js instead?
+
+1. Create `src/lib/auth/adapters/authjs.ts`
+2. Implement the same interface
+3. Update the export in `src/lib/auth/index.ts`
+
+Your app code—every `getCurrentUser()` call—stays exactly the same.
+
+The auth adapter interface is simple:
+
+```typescript
+interface AuthAdapter {
+  getCurrentUser(): Promise<AuthUser | null>;
+  getUserId(): Promise<string | null>;
+}
+```
+
+Implement those two functions for your provider, and you're done.
+
+## Email: Just a Function
+
+Email is even simpler. The send functions in `src/lib/emails/index.ts` use Resend, but they're just functions:
+
+```typescript
+export async function sendWelcomeEmail(email: string, name: string) {
+  await resend.emails.send({
+    from: siteConfig.email.from,
+    to: email,
+    subject: `Welcome to ${siteConfig.name}`,
+    react: WelcomeEmail({ name }),
+  });
+}
+```
+
+To swap to SendGrid, Postmark, or any other provider:
+
+1. Install their SDK
+2. Update the send functions to use the new client
+3. Keep the function signatures the same
+
+The webhook handlers that call `sendWelcomeEmail()` don't care what's inside. They just call the function.
+
+## Database: Connection String Swap
+
+Drizzle ORM connects to PostgreSQL via a connection string. A2SaaS uses Neon, but Drizzle works with any Postgres database.
+
+To switch to Supabase:
+
+1. Create a Supabase project
+2. Get the connection string
+3. Update `DATABASE_URL` in your environment
+
+That's it. Your schema, queries, and relations all work exactly the same. Drizzle doesn't care where the database lives.
+
+For PlanetScale (MySQL), you'd need to update the schema syntax slightly (PlanetScale doesn't support foreign keys the same way), but the Drizzle query patterns remain identical.
+
+## What Stays the Same
+
+When you swap a provider, these things don't change:
+
+- **Your app code** — Pages, components, API routes
+- **Your business logic** — Validation, workflows, calculations
+- **Your database schema** — Tables, relations, queries
+- **Your tests** — (If you have them)
+
+What changes:
+
+- **One adapter file** — The provider-specific implementation
+- **Environment variables** — API keys, connection strings
+- **Maybe middleware** — Auth middleware is provider-specific
+
+## Skills for Swapping (Coming Soon)
+
+We're building Claude Code skills to make provider swaps even easier:
+
+- `/swap-auth` — Walk through replacing Clerk with Auth.js
+- `/swap-email` — Switch from Resend to SendGrid
+- `/swap-db` — Move from Neon to Supabase
+
+Run the skill, answer a few questions, and Claude handles the file changes. No manual find-and-replace.
+
+Want to request a skill? [Open an issue on GitHub](https://github.com/edfed/A2SaaS/issues).
+
+## Why This Matters
+
+Vendor lock-in is real. Pricing changes. Services shut down. Your needs evolve.
+
+Building with abstraction layers means you're never stuck. You chose Clerk today because it was convenient. If you need to switch tomorrow, you can—without rewriting your app.
+
+That's the A2SaaS philosophy: give you a solid foundation, but never trap you in it.
+
+---
+
+**TL;DR**: A2SaaS abstracts auth, email, and database connections. Swap providers by changing one file, not fifty.
