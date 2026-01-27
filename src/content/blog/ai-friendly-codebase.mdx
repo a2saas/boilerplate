@@ -1,0 +1,122 @@
+---
+title: "What Makes a Codebase AI-Friendly?"
+description: "Why AI assistants work better with some codebases than others."
+date: "2024-12-29"
+author: "A2SaaS Team"
+tags: ["ai", "architecture", "claude", "cursor"]
+---
+
+If you've used Claude, Cursor, or GitHub Copilot on a real codebase, you've noticed something: some projects are easier for AI to work with than others.
+
+It's not about size. A well-structured 50,000-line codebase can be easier to navigate than a chaotic 5,000-line one. The difference is in how the code is organized.
+
+A2SaaS was designed with AI-assisted development in mind. Here's what that means in practice.
+
+## Predictable File Structure
+
+When an AI assistant needs to find something, it searches. If your codebase follows conventions, the AI can make educated guesses:
+
+- Auth logic? Check `src/lib/auth/`
+- Database schema? Check `src/server/db/schema.ts`
+- API routes? Check `src/app/api/`
+
+A2SaaS uses Next.js App Router conventions consistently. Route groups like `(marketing)` and `(app)` separate public and protected pages. No surprises.
+
+```
+src/
+├── app/
+│   ├── (auth)/          # Sign-in, sign-up
+│   ├── (marketing)/     # Landing, pricing, blog
+│   ├── (app)/           # Dashboard (protected)
+│   └── api/             # API routes
+├── components/          # React components
+├── lib/                 # Utilities and clients
+└── server/db/           # Database schema and helpers
+```
+
+An AI reading this structure knows where to look before it starts searching.
+
+## Schema-First Design
+
+The most AI-friendly pattern in A2SaaS is the database schema. Everything is defined in one file: `src/server/db/schema.ts`.
+
+```typescript
+export const users = pgTable("users", {
+  id: varchar("id", { length: 128 }).primaryKey(),
+  email: varchar("email", { length: 256 }).notNull().unique(),
+  name: varchar("name", { length: 256 }),
+  // ...
+});
+
+export const subscriptions = pgTable("subscriptions", {
+  userId: varchar("user_id").references(() => users.id),
+  status: varchar("status", { length: 32 }),
+  // ...
+});
+```
+
+An AI can read this single file and understand your entire data model. No ORM magic. No hidden migrations. Just TypeScript that describes your tables.
+
+When you ask "add a posts table with a title and body," the AI knows exactly where to put it and what patterns to follow.
+
+## Colocated Logic
+
+Some codebases scatter related code across many files. A single feature might touch:
+
+- A component in `/components`
+- A hook in `/hooks`
+- A utility in `/utils`
+- A type in `/types`
+- A constant in `/constants`
+
+This forces the AI (and you) to hold multiple files in context. A2SaaS prefers colocation:
+
+- API route handlers include their Zod validation schemas
+- Page components include their metadata exports
+- Database queries live near the code that uses them
+
+Less jumping around. Fewer files to read. Smaller context window usage.
+
+## Context Files
+
+A2SaaS ships with `CLAUDE.md`—a context file that tells AI assistants how the codebase works. It includes:
+
+- Project structure overview
+- Common patterns (API routes, auth, database queries)
+- File locations for common tasks
+- Things to avoid
+
+When you start a Claude Code session in an A2SaaS project, the AI reads this file first. It knows the conventions before you ask your first question.
+
+## Type Safety as Guardrails
+
+TypeScript isn't just for catching your errors—it catches AI errors too.
+
+When an AI generates code, the type checker validates it. If Claude writes a database query with the wrong column name, TypeScript complains. If it passes the wrong type to a function, the build fails.
+
+A2SaaS uses strict TypeScript everywhere:
+
+- Zod for runtime validation
+- Drizzle for type-safe database queries
+- Proper typing on all API responses
+
+The AI can't generate code that doesn't compile. That's a powerful guardrail.
+
+## Skills as Executable Documentation
+
+Documentation tells you how to do something. Skills _do_ it.
+
+A2SaaS includes Claude Code skills for common tasks:
+
+- `/add-page` — Scaffolds a new marketing or dashboard page
+- `/add-api` — Creates an API endpoint with validation
+- `/add-table` — Adds a database table with proper patterns
+- `/remove-blog` — Cleanly removes the blog system
+
+Instead of reading docs and copying patterns, you run a command. The AI follows the skill's instructions, asks clarifying questions, and produces consistent results.
+
+We're adding more skills over time. Have a request? [Open an issue on GitHub](https://github.com/edfed/A2SaaS/issues).
+
+---
+
+**The bottom line**: AI-friendly isn't magic. It's predictable structure, clear patterns, and guardrails that catch mistakes. A2SaaS is built this way because we use AI to build it—and we want you to have the same experience.
